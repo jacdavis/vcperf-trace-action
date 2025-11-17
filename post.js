@@ -38,8 +38,14 @@ async function run() {
           const artifact = require('@actions/artifact');
           const artifactClient = new artifact.DefaultArtifactClient();
           
-          await artifactClient.uploadArtifact(artifactName, [jsonFile], process.cwd());
+          const uploadResult = await artifactClient.uploadArtifact(artifactName, [jsonFile], process.cwd());
           core.info(`Uploaded artifact: ${artifactName}`);
+          
+          // Create issue if requested
+          const createIssue = core.getInput('create-issue') === 'true';
+          if (createIssue) {
+            await createAnalysisIssue(artifactName);
+          }
         } else {
           core.warning('JSON file was not created');
         }
@@ -51,6 +57,57 @@ async function run() {
     }
   } catch (error) {
     core.warning(`Failed to stop vcperf or upload artifact: ${error.message}`);
+  }
+}
+
+async function createAnalysisIssue(artifactName) {
+  try {
+    const github = require('@actions/github');
+    const token = process.env.GITHUB_TOKEN;
+    
+    if (!token) {
+      core.warning('GITHUB_TOKEN not available, skipping issue creation');
+      return;
+    }
+    
+    const octokit = github.getOctokit(token);
+    const context = github.context;
+    
+    const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+    const artifactUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}#artifacts`;
+    
+    const issueBody = `## Build Performance Analysis Request
+
+A new build has completed with vcperf tracing enabled.
+
+**Build Details:**
+- Run: ${runUrl}
+- Artifacts: ${artifactUrl}
+- Artifact Name: ${artifactName}
+- Commit: ${context.sha}
+- Branch: ${context.ref}
+
+@copilot Please analyze the build trace artifact from this run and identify opportunities to improve build performance. After analyzing, please:
+
+1. Download and analyze the ${artifactName} artifact
+2. Identify build bottlenecks and optimization opportunities
+3. Trigger a new build with your recommended optimizations
+4. Compare the new build trace to identify improvements
+5. Report back on this issue with your findings
+
+The build trace JSON artifact contains detailed timing information about compilation units, headers, and build bottlenecks.`;
+
+    const issue = await octokit.rest.issues.create({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      title: `Build Performance Analysis - Run ${context.runNumber}`,
+      body: issueBody,
+      assignees: ['copilot']
+    });
+
+    core.info(`Created issue #${issue.data.number}: ${issue.data.html_url}`);
+  } catch (error) {
+    core.warning(`Failed to create issue: ${error.message}`);
   }
 }
 

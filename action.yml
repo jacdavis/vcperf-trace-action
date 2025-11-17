@@ -9,6 +9,10 @@ inputs:
     description: 'Name for the uploaded artifact'
     required: false
     default: 'build-trace-analysis'
+  create-issue:
+    description: 'Create a GitHub issue and assign to Copilot for analysis'
+    required: false
+    default: 'false'
 
 runs:
   using: 'node20'
