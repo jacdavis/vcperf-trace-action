@@ -36,13 +36,9 @@ async function run() {
           
           // Upload artifact using artifact action
           const artifact = require('@actions/artifact');
-          const artifactClient = artifact.create();
-          const files = [jsonFile];
-          const rootDirectory = process.cwd();
+          const artifactClient = new artifact.DefaultArtifactClient();
           
-          await artifactClient.uploadArtifact(artifactName, files, rootDirectory, {
-            continueOnError: false
-          });
+          await artifactClient.uploadArtifact(artifactName, [jsonFile], process.cwd());
           core.info(`Uploaded artifact: ${artifactName}`);
         } else {
           core.warning('JSON file was not created');
