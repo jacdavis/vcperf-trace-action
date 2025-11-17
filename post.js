@@ -73,10 +73,43 @@ async function createAnalysisIssue(artifactName) {
     const octokit = github.getOctokit(token);
     const context = github.context;
     
+    // Check if an open analysis issue already exists
+    const existingIssues = await octokit.rest.issues.listForRepo({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      state: 'open',
+      labels: 'build-performance',
+      per_page: 1
+    });
+    
     const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
     const artifactUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}#artifacts`;
     
-    const issueBody = `## Build Performance Analysis Request
+    if (existingIssues.data.length > 0) {
+      // Comment on existing issue instead of creating new one
+      const existingIssue = existingIssues.data[0];
+      const commentBody = `## New Build Trace Available
+
+**Build Details:**
+- Run: ${runUrl}
+- Artifacts: ${artifactUrl}
+- Artifact Name: ${artifactName}
+- Commit: ${context.sha}
+- Branch: ${context.ref}
+
+@copilot Please analyze this latest build trace and compare it to previous results. Continue iterating on the same PR to improve build performance.`;
+
+      await octokit.rest.issues.createComment({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        issue_number: existingIssue.number,
+        body: commentBody
+      });
+      
+      core.info(`Added comment to existing issue #${existingIssue.number}: ${existingIssue.html_url}`);
+    } else {
+      // Create new issue with label
+      const issueBody = `## Build Performance Analysis Request
 
 A new build has completed with vcperf tracing enabled.
 
@@ -87,27 +120,31 @@ A new build has completed with vcperf tracing enabled.
 - Commit: ${context.sha}
 - Branch: ${context.ref}
 
-@copilot Please analyze the build trace artifact from this run and identify opportunities to improve build performance. After analyzing, please:
+@copilot Please analyze the build trace artifact from this run and identify opportunities to improve build performance. 
 
-1. Download and analyze the ${artifactName} artifact
-2. Identify build bottlenecks and optimization opportunities
-3. Trigger a new build with your recommended optimizations
-4. Compare the new build trace to identify improvements
-5. Report back on this issue with your findings
+**Instructions:**
+1. Download and analyze the ${artifactName} artifact from the link above
+2. Identify the top build bottlenecks and optimization opportunities
+3. Create a SINGLE pull request with your recommended code changes to improve build performance
+4. After the PR is merged, I will mention you in this issue with the new build trace to continue iterating
+5. Keep updating the SAME PR for all optimization iterations - do not create multiple PRs
+6. Report your findings and progress in this issue
 
 The build trace JSON artifact contains detailed timing information about compilation units, headers, and build bottlenecks.`;
 
-    const issue = await octokit.rest.issues.create({
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      title: `Build Performance Analysis - Run ${context.runNumber}`,
-      body: issueBody,
-      assignees: ['copilot']
-    });
+      const issue = await octokit.rest.issues.create({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        title: `Build Performance Optimization`,
+        body: issueBody,
+        assignees: ['copilot'],
+        labels: ['build-performance']
+      });
 
-    core.info(`Created issue #${issue.data.number}: ${issue.data.html_url}`);
+      core.info(`Created issue #${issue.data.number}: ${issue.data.html_url}`);
+    }
   } catch (error) {
-    core.warning(`Failed to create issue: ${error.message}`);
+    core.warning(`Failed to create/update issue: ${error.message}`);
   }
 }
 
