@@ -178,7 +178,6 @@ The build trace JSON artifact contains detailed timing information about compila
         repo: context.repo.repo,
         title: `Build Performance Optimization`,
         body: issueBody,
-        assignees: ['copilot'],
         labels: ['build-performance']
       });
 
