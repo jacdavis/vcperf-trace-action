@@ -99,6 +99,42 @@ async function createAnalysisIssue(artifactName) {
       const iterationCount = comments.data.filter(c => c.body.includes('New Build Trace Available')).length + 1;
       const maxIterations = 5;
       
+      // Check if last comment indicates no recommendations
+      const lastComment = comments.data[comments.data.length - 1];
+      const noRecommendations = lastComment && 
+        (lastComment.body.includes('no further recommendations') || 
+         lastComment.body.includes('no significant optimizations') ||
+         lastComment.body.includes('build is already optimized'));
+      
+      if (noRecommendations) {
+        const finalComment = `## Optimization Complete - No Further Recommendations
+
+Build trace available but optimization process is complete (no further recommendations from previous iteration).
+
+**Build Details:**
+- Run: ${runUrl}
+- Artifacts: ${artifactUrl}
+
+Closing this issue as no further optimizations are recommended.`;
+
+        await octokit.rest.issues.createComment({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          issue_number: existingIssue.number,
+          body: finalComment
+        });
+        
+        await octokit.rest.issues.update({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          issue_number: existingIssue.number,
+          state: 'closed'
+        });
+        
+        core.info(`Closed issue #${existingIssue.number} - no further recommendations`);
+        return;
+      }
+      
       if (iterationCount > maxIterations) {
         const finalComment = `## Maximum Iterations Reached
 
@@ -137,7 +173,9 @@ Closing this issue as the optimization process has completed ${maxIterations} it
 - Commit: ${context.sha}
 - Branch: ${context.ref}
 
-@copilot Please analyze this latest build trace and compare it to previous results. Continue iterating on the same PR to improve build performance. This is iteration ${iterationCount} of ${maxIterations}.`;
+@copilot Please analyze this latest build trace and compare it to previous results. Continue iterating on the same PR to improve build performance. This is iteration ${iterationCount} of ${maxIterations}.
+
+**Important:** If you have no further recommendations or believe the build is already well-optimized, please respond with "no further recommendations" and I will close this issue.`;
 
       await octokit.rest.issues.createComment({
         owner: context.repo.owner,
