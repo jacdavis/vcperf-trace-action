@@ -63,10 +63,10 @@ async function run() {
 async function createAnalysisIssue(artifactName) {
   try {
     const github = require('@actions/github');
-    const token = process.env.GITHUB_TOKEN;
+    const token = core.getInput('github-token') || process.env.GITHUB_TOKEN;
     
     if (!token) {
-      core.warning('GITHUB_TOKEN not available, skipping issue creation');
+      core.warning('GITHUB_TOKEN not available, skipping issue creation. Please pass github-token input.');
       return;
     }
     

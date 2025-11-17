@@ -13,6 +13,10 @@ inputs:
     description: 'Create a GitHub issue and assign to Copilot for analysis'
     required: false
     default: 'false'
+  github-token:
+    description: 'GitHub token for creating issues'
+    required: false
+    default: ''
 
 runs:
   using: 'node20'
